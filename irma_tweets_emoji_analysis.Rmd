@@ -1,0 +1,458 @@
+```{r}
+options(stringsAsFactors = FALSE)
+library(slam)
+library(magrittr)
+library(textcat)
+#library(cldr)
+library(entropart)
+#update.packages()
+library(tidyverse)
+#library(tokenizers)
+library(mgcv)
+library(twitteR)
+library(plyr)
+library(dplyr)
+library(boot)
+library(vegan)
+library(simboot)
+library(ROAuth)
+library(stringr)
+library(readxl)
+library(stringi)
+library(stringr)
+library(tidytext)
+library(tidyr)
+library(dplyr)
+library(tm)
+library(scales)
+library(reshape2)
+library(ggplot2)
+#library(sentiment)
+library(SnowballC)
+library(tm)
+library(RColorBrewer)
+```
+
+
+
+#Load the data from the csv file
+
+```{r}
+data_irma = read.csv2(file="irma_timeseries_countries.csv",header=TRUE,sep=",",encoding="UTF-8")
+```
+
+```{r}
+data_irma
+```
+
+#Separate the tweets into solidarity and non-solidarity tweets
+```{r}
+data_irma_solidarity = subset(data_irma, labels==1)
+data_irma_non_solidarity = subset(data_irma, labels==-1)
+```
+
+
+
+#Number of solidarity and non-solidarity tweets
+```{r}
+nrow(data_irma_solidarity)
+nrow(data_irma_non_solidarity)
+```
+
+#get the solidarity tweets from the dataframe 
+```{r}
+sol_irma_tweets <- data_irma_solidarity %>% select(text) 
+sol_irma_tweets <- unique(sol_irma_tweets)
+```
+
+
+#get the non-solidarity tweets from the dataframe 
+```{r}
+
+non_sol_irma_tweets <- data_irma_non_solidarity %>% select(text) 
+non_sol_irma_tweets <- unique(non_sol_irma_tweets)
+```
+
+```{r}
+nrow(non_sol_irma_tweets)
+```
+
+#Load the emoji dictionary containing emoji's and the unicode values
+```{r}
+emDict_raw <- read.csv2("emDict.csv",sep=";") %>% 
+      select(EN, utf8, unicode) %>% 
+      dplyr::rename(description = EN, r.encoding = utf8)
+```
+
+#pre-process skin ones if necessary
+```{r}
+# plain skin tones
+skin_tones <- c("light skin tone", 
+                "medium-light skin tone", 
+                "medium skin tone",
+                "medium-dark skin tone", 
+                "dark skin tone")
+
+# remove plain skin tones and remove skin tone info in description
+emDict <- emDict_raw %>%
+  # remove plain skin tones emojis
+ filter(!description %in% skin_tones) %>%
+  # remove emojis with skin tones info, e.g. remove woman: light skin tone and only
+  # keep woman
+  filter(!grepl(":", description)) %>%
+  mutate(description = tolower(description)) %>%
+  mutate(unicode = unicode)
+```
+
+
+#get the rank of emoji's in solidarity tweets
+
+```{r}
+new_rank_solidarity <- data_irma_solidarity%>%
+  group_by(description)%>% 
+  dplyr::summarise(count = sum(count)) %>%arrange(-count) 
+```
+
+
+#get the rank of emoji's in non-solidarity tweets
+```{r}
+new_rank_non_solidarity <- data_irma_non_solidarity%>%
+  group_by(description)%>% 
+  dplyr::summarise(count = sum(count)) %>%arrange(-count) 
+```
+
+
+#Filter out tweets with the description "None"
+```{r}
+raw_texts_irma_sol <- data_irma_solidarity %>% 
+  #mutate(text = cleanPosts(text)) %>%
+  filter(text != "") %>% 
+  filter(description!="None")
+```
+
+
+##get the rank of top 10 emoji's
+```{r}
+res_rank<-head(new_rank_solidarity, 10)
+res_rank
+```
+
+#Merge the emoji dictionary with the rank data frame to obtain unicode values for each emoji's
+```{r}
+res <- merge(res_rank, emDict, by.x = "description", by.y = "description")
+res
+```
+
+##add variation selector to the red heart to ensure correct display
+```{r}
+res$unicode[res$description=="red heart"] <- 'U+2764 U+FE0F'
+```
+
+```{r}
+conv_unicode = as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", res$unicode))))
+conv_unicode = gsub("[[:space:]]", "", conv_unicode) 
+conv_unicode
+```
+
+##Frequency chart showing top ten emoji's
+```{r}
+
+library(emojifont)
+library(ggplot2)
+library(gridSVG)
+load.emojifont("OpenSansEmoji.ttf")
+list.emojifonts()
+quartz()
+ggplot(res, aes(reorder(description,-count), sprintf("%0.2f", round(count, digits = 2)), label = c(conv_unicode))) +
+  geom_bar(stat = "identity") +
+  geom_text(col= 'blue',family = "OpenSansEmoji", size = 6, vjust = -.5) +
+  scale_x_discrete(breaks = res$description, labels = c(conv_unicode)) +
+  ylab("Frequency") +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+    axis.ticks.x=element_blank())
+ps = grid.export("emoji_solidarity_irma.svg", addClass=T)
+```
+
+
+##Create data table containing emoji's grouping by each tweet and country
+```{r}
+#install.packages("qdap")
+emoji_irma_sol <- unique(raw_texts_irma_sol)
+library(data.table)
+emoj_sol_lis_irma<-as.data.table(emoji_irma_sol)[, toString(description), by = list(text,country)]
+emoj_sol_lis_irma
+```
+
+
+
+##get the tweets and emoji's for regions affected by irma
+```{r}
+emoj_sol_lis_irma_affected = emoj_sol_lis_irma[which(country %in% c("United States of America","Antigua and Barbuda","Barbados","Saint Martin","Saint Kitts and Nevis","Saint Barthelemy","British Virgin Islands","Anguilla","Puerto Rico","Haiti","Dominican Republic","Dominica","Cuba","Turks and Caicos Islands"))]
+```
+
+
+
+
+#get the frequency of each emoji
+```{r}
+library(stringr)
+emoj_sol_lis_irma_affected$V1%>%
+  str_split(", | and ") %>%
+  unlist %>%
+  table %>%
+  data.frame %>%
+  arrange(c(-Freq)) %>%
+  filter(Freq > 1)
+```
+
+
+##construct a weighted edge list
+```{r}
+e <- emoj_sol_lis_irma_US$V1 %>%
+  str_split(", | and ") %>%
+  lapply(function(x) {
+    expand.grid(x, x,w = 1 / length(x), stringsAsFactors = FALSE)
+  }) %>%
+  bind_rows
+
+e <- apply(e[, -3], 1, str_sort) %>%
+  t %>%
+  data.frame(stringsAsFactors = FALSE) %>%
+  mutate(w = e$w)
+```
+
+
+
+#remove keywords connected to themselves in cooccurence pairs
+```{r}
+e <- group_by(e, X1, X2) %>%
+  dplyr::summarise(w = sum(w)) %>% 
+  filter(X1 != X2) %>% arrange(-w) 
+
+```
+
+#construct a weighted network
+```{r}
+#install.packages("igraph")
+#install.packages("tnet")
+library(tnet)
+library(igraph)
+library(intergraph)
+library(ggnetwork)
+library(network)
+library(dplyr)
+library(ggplot2)
+n <- network(e[, -3], directed = FALSE)
+
+
+network::set.edge.attribute(n, "weight", e$w)
+
+# weighted degree at alpha = 1
+t <- as.edgelist(n, attrname = "weight") %>%
+  symmetrise_w %>%
+  as.tnet %>%
+  degree_w
+
+stopifnot(nrow(t) == network.size(n))
+network::set.vertex.attribute(n, "degree_w", t[, "output" ])
+```
+
+#remove the nodes with a low weighted degree from consideration
+```{r}
+l <- n %v% "degree_w"
+
+
+l <- ifelse(l >= median(l), network.vertex.names(n), NA)
+
+stopifnot(length(l) == network.size(n))
+#l <- l[!is.na(l)]
+#network::set.vertex.attribute(n, "label", l)
+```
+
+
+```{r}
+l <- rbind(l, data.frame(description = l))
+```
+
+
+#merge with the emoji dictionary to get unicode value for each emoji
+```{r}
+res_sol <- merge(l, emDict, by.x = "description", by.y = "description")
+res_sol
+```
+##add variation selector to the red heart to ensure correct display
+```{r}
+res_sol$unicode[res_sol$description=="red heart"] <- 'U+2764 U+FE0F'
+```
+
+```{r}
+
+conv_unicode_paris_sol = as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", res_sol$unicode))))
+conv_unicode_paris_sol = gsub("[[:space:]]", "", conv_unicode_paris_sol) 
+#conv_unicode_paris_sol
+#class(conv_unicode_paris_sol)
+network::set.vertex.attribute(n, "label", conv_unicode_paris_sol)
+ network.vertex.names(n)<-c(conv_unicode_paris_sol)
+```
+
+#create coocurrence network
+```{r}
+library(emojifont)
+library(ggplot2)
+library(gridSVG)
+load.emojifont("EmojiOne.ttf")
+list.emojifonts()
+quartz()
+ggnetwork(n,layout = "fruchtermanreingold",weights = "weight",n_iter=1500) %>%
+ggplot(aes(x, y, xend = xend, yend = yend)) +
+  geom_edges(color="grey80")+
+  geom_nodetext(aes(label = label),check_overlap=TRUE) +
+  scale_size_continuous(range = c(6, 6)) +
+  scale_color_gradient2(low = "grey25", midpoint = 0.75, high = "black") +
+  guides(size = FALSE, color = FALSE) + 
+  theme_blank()
+ggsave("irma.pdf")
+ps = grid.export("emoji_solidarity_irma_network_affected.svg", addClass=T)
+```
+
+#get the tweets from regions not affected by irma
+```{r}
+emoj_sol_lis_irma_NotAffected = emoj_sol_lis_irma[which(!(country %in% c("United States of America","Antigua and Barbuda","Barbados","Saint Martin","Saint Kitts and Nevis","Saint Barthelemy","British Virgin Islands","Anguilla","Puerto Rico","Haiti","Dominican Republic","Dominica","Cuba","Turks and Caicos Islands","None")))]
+```
+
+
+
+
+##get the frequencies of emoji's
+```{r}
+library(stringr)
+emoj_sol_lis_paris_NotUS$V1%>%
+  str_split(", | and ") %>%
+  unlist %>%
+  table %>%
+  data.frame %>%
+  arrange(c(-Freq)) %>%
+  filter(Freq > 1)
+```
+
+
+##construct a weighted edge list
+```{r}
+e <- emoj_sol_lis_paris_NotUS$V1 %>%
+  str_split(", | and ") %>%
+  lapply(function(x) {
+    expand.grid(x, x, w = 1 / length(x),stringsAsFactors = FALSE)
+  }) %>%
+  bind_rows
+
+e <- apply(e[, -3], 1, str_sort) %>%
+  t %>%
+  data.frame(stringsAsFactors = FALSE) %>%
+  mutate(w = e$w)
+```
+
+#remove keywords connected to themselves in cooccurence pairs
+```{r}
+e <- group_by(e, X1, X2) %>%
+  dplyr::summarise(w=sum(w)) %>% arrange(-w)%>%
+  filter(X1 != X2)
+
+  
+e
+```
+
+
+
+#construct a weighted network
+```{r}
+#install.packages("igraph")
+#install.packages("tnet")
+library(tnet)
+library(igraph)
+library(intergraph)
+library(ggnetwork)
+library(network)
+library(dplyr)
+library(ggplot2)
+n <- network(e[, -3], directed = FALSE)
+
+#hjstopifnot(nrow(e) == network.edgecount(n))
+network::set.edge.attribute(n, "weight", e$w)
+
+# weighted degree at alpha = 1
+t <- as.edgelist(n, attrname = "weight") %>%
+  symmetrise_w %>%
+  as.tnet %>%
+  degree_w
+
+stopifnot(nrow(t) == network.size(n))
+network::set.vertex.attribute(n, "degree_w", t[, "output" ])
+```
+
+#remove the nodes with a low weighted degree from consideration
+```{r}
+l <- n %v% "degree_w"
+
+
+l <- ifelse(l >= median(l), network.vertex.names(n), NA)
+
+stopifnot(length(l) == network.size(n))
+#l <- l[!is.na(l)]
+#network::set.vertex.attribute(n, "label", l)
+```
+
+
+```{r}
+l <- rbind(l, data.frame(description = l))
+```
+
+```{r}
+l
+```
+
+
+
+#merge with the emoji dictionary to get unicode value for each emoji
+```{r}
+res_sol <- merge(l, emDict, by.x = "description", by.y = "description")
+res_sol
+```
+##add variation selector to the red heart to ensure correct display
+```{r}
+res_sol$unicode[l_sol$description=="red heart"] <- 'U+2764 U+FE0F'
+```
+
+```{r}
+
+conv_unicode_paris_sol = as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", l_sol$unicode))))
+conv_unicode_paris_sol = gsub("[[:space:]]", "", conv_unicode_paris_sol) 
+#conv_unicode_paris_sol
+#class(conv_unicode_paris_sol)
+network::set.vertex.attribute(n, "label", conv_unicode_paris_sol)
+ 
+```
+
+#create cooccurence network
+```{r}
+library(emojifont)
+library(ggplot2)
+library(gridSVG)
+load.emojifont("EmojiOne.ttf")
+list.emojifonts()
+quartz()
+ggnetwork(n,layout = "fruchtermanreingold",weights = "weight", niter = 1500) %>%
+ggplot(aes(x, y, xend = xend, yend = yend)) +
+  geom_edges(color = "grey80")+
+  geom_nodetext(aes(label = label),check_overlap=TRUE) +
+  scale_size_continuous(range = c(6, 6)) +
+  scale_color_gradient2(low = "grey25", midpoint = 0.75, high = "black") +
+  guides(size = FALSE, color = FALSE) + 
+  theme_blank()
+ps = grid.export("emoji_solidarity_irma_network_NotAffected.svg", addClass=T)
+```
+
+
+
+
+

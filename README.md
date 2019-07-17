@@ -26,5 +26,12 @@ Depends on the annotation made available in the annotations folder to further pr
 
 3. [Geo-tagging](https://github.com/sashank06/ICWSM_Emoji/blob/master/geotagging_irma.py) sample code is made availble for the IRMA dataset. This helps give the location mentioned in the tweets with a latitude, longitude and country.
 
+**Reproducing Co-occurence Network**
+1. Run the [irma_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/irma_tweets_emoji_analysis.Rmd) and [paris_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/paris_tweets_emoji_analysis.Rmd) with the prepared dataset.
+
+Should produce these figures
+Irma Network outside US           |  Irma Network inside US 
+:-------------------------:|:-------------------------:
+![Irma Network outside US](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_NotUS.png)  |  ![Irma Network inside US ](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_US.png)
 
 Please contact ssantha1@uncc.edu if you have any further questions.

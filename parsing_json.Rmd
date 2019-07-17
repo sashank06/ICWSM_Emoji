@@ -1,0 +1,164 @@
+---
+title: "06_parsing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## do 10,11,12
+```{r}
+dir <- "/Users/ssantha1/Desktop/datasets/IRMA/raw_json/20170912/"
+files <- list.files(dir)
+
+library(tidyverse); library(streamR)
+
+# find the user-stats file
+#user <- read_csv("./user-stats.csv")
+#col <- c("screenName", "LABEL")
+#ids <- user[,col]
+
+# initialize first time
+t <- parseTweets(paste0(dir,files[1]), simplify = TRUE)
+#t <- merge(t, ids, by.x = "screen_name", by.y = "screenName")
+tweets  <- t
+tweets <- tweets[0,]
+
+start.time <- Sys.time()
+for (i in files){
+  tryCatch({
+             t <- parseTweets(paste0(dir,i), simplify = TRUE)
+             #t <- merge(t, ids, by.x = "screen_name", by.y = "screenName")
+             tweets <- rbind(tweets, t)}, 
+             error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+}
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+tweets_df <- tweets %>%
+        select(created_at, text, location, lang)
+# Filter English tweets
+tweets_df <- tweets_df[tweets_df$lang == "en",]
+tweets_df$created_at <- parse_datetime(substr(tweets_df$created_at,5,100), format = "%b %d %H:%M:%S %z %Y")
+```
+
+```{r}
+write_csv(tweets_df, "irma_12_4fields.csv")
+```
+
+#write data as a feather file
+```{r}
+tweets_df_new = read.csv2(file="irma_12_4fields.csv", header=TRUE, sep=",", stringsAsFactors = FALSE, fileEncoding = "utf-8")
+write_feather(tweets_df_new,'12.feather')
+```
+
+
+```{python}
+import pandas as pd
+import feather
+import re
+#Read Dataframe and get hashtags
+irma_df = feather.read_dataframe("12.feather")
+def get_hashtags(tweets):
+    hashtag = []
+    for tweet in tweets:
+        #hash_ = []
+        hashtag.append(re.findall(r"#(\w+)", tweet.lower()))
+        #hashtag.append(hash_
+    return hashtag
+hashtags_list = get_hashtags(irma_df['text'].tolist())
+
+#Label the based on hastags
+
+# 1- Solidarity, 0 -Ignore, -1 - No Solidarity
+
+df_annotations = pd.read_excel('annotations_new.xlsx')
+df_annotations= df_annotations[['hashtags','annotations']]
+
+df_solidarity = df_annotations.loc[df_annotations['annotations'] == "solidarity"]
+df_nosolidarity = df_annotations.loc[df_annotations['annotations'] == "no solidarity"]
+
+solidarity = df_solidarity['hashtags'].tolist()
+no_solidarity = df_nosolidarity['hashtags'].tolist()
+
+print("Number of solidarity: {}".format(len(solidarity)))
+print("Number of non solidarity: {}".format(len(no_solidarity)))
+
+annotations = dict(zip(df_annotations.hashtags, df_annotations.annotations))
+
+def annotate_tweet(hashtags_list):
+    annotated_list = []
+    for hashtag in hashtags_list:
+        switch = 2
+        for tag in hashtag:
+            #if tag not in solidarity and tag not in no_solidarity:
+            #    switch = 0
+            #else:
+            if tag in solidarity and tag not in no_solidarity:
+                switch = 1
+            elif tag in no_solidarity and tag not in solidarity:
+                switch = -1
+            elif tag not in no_solidarity and tag not in solidarity and switch==1:
+                switch = 1
+            elif tag in no_solidarity and tag not in solidarity and switch==-1:
+                switch = -1
+            elif tag in no_solidarity and tag not in solidarity and switch==1:
+                switch = 0
+                break
+            elif tag not in no_solidarity and tag in solidarity and switch==-1:
+                switch = 0
+                break
+            else:
+                switch = 0
+        if switch == -1:
+            annotated_list.append(-1)
+        elif switch == 1:
+            annotated_list.append(1)
+        else:
+            annotated_list.append(0)
+    return annotated_list
+annotated_list = annotate_tweet(hashtags_list)
+print("Number of no solidarity: {}".format(annotated_list.count(-1)))
+print("Number of solidarity: {}".format(annotated_list.count(1)))
+print("Number of undecided: {}".format(annotated_list.count(0)))
+
+#--------------------------------
+
+#Retrieve only the solidarity and non solidarity
+
+def tweets_labels(tweets,annotated_list,created_at,location):
+    tweet = []
+    labels = []
+    posted_time = []
+    locations = []
+    for i in range(0,len(tweets)):
+        if annotated_list[i] == 1 or annotated_list[i] == -1:
+            labels.append(annotated_list[i])
+            tweet.append(tweets[i].lower().encode("utf-8").decode("utf-8"))
+            posted_time.append(created_at[i])
+            locations.append(location[i])
+        else:
+            pass
+    return labels,tweet,posted_time,locations
+
+labels,tweet,posted_time,locations = tweets_labels(irma_df['text'].tolist(),annotated_list,irma_df['created_at'].tolist(),irma_df['location'].tolist()) 
+
+irma = pd.DataFrame(index=range(len(tweet)))
+irma['tweet'] = pd.DataFrame(tweet)
+irma['labels'] = pd.DataFrame(labels)
+irma['posted_time'] = pd.DataFrame(posted_time)
+irma['locations'] = pd.DataFrame(locations)
+
+irma.to_csv('processed/irma_12with_locations.csv',index=False,encoding="utf-8")
+
+feather.write_dataframe(irma,'processed/irma_12with_locations.feather')
+
+```

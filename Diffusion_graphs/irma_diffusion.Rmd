@@ -1,0 +1,262 @@
+---
+title: "Irma_timeseries_differentattempt"
+author: "Sashank"
+date: "3/10/2018"
+output: html_document
+---
+
+```{r}
+library(flexdashboard); library("readr"); library("dplyr"); library("lubridate"); library("streamgraph"); library("htmlwidgets");  library(xts); library(lubridate); library(dygraphs); library(reshape2);library(feather);library(stringr)
+library(forecast)
+library(fpp2)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(ggthemes)
+library(RColorBrewer)
+library(tm)
+library(tidytext)
+library(wordcloud)
+library(lubridate)
+library(viridis)
+library(tidyr)
+library(emojifont)
+library(ggplot2)
+library(gridSVG)
+load.emojifont("OpenSansEmoji.ttf")
+```
+
+#reading in Irma data
+```{r}
+#irma_df <- read.csv("processed/code/irma_timeseries_countries.csv", stringsAsFactors = F, encoding="utf-8")
+irma_df <- read.csv("processed/code/irma_timeseries_countries_sentiments.csv", stringsAsFactors = F, encoding="utf-8")
+irma_df$estTime <- ymd_hms(irma_df$posted_time, tz = "America/New_York")
+# Pick hashtags with regexp
+#hashtags_list_new <- regmatches(tweets_df$new_text, gregexpr("%\\W(.*?)\\W*%", tweets_df$new_text))
+#hashtags_list_new <- regmatches(tweets_df$description, gregexpr(".*", tweets_df$description))
+```
+
+
+```{r}
+irma_df$day <- day(irma_df$estTime)
+irma_df$hour <- hour(irma_df$estTime)
+#irma_df$timestamp <- paste0("2017-09-",irma_df$day," ",irma_df$hour,":00:00")
+#irma_df$timestamp = paste0(substr(irma_df$estTime, 1, 13), ":00:00")
+```
+
+```{r}
+#Irma Solidarity
+#45606
+solidarity <- irma_df[irma_df$labels==1,]
+#22050
+solidarity_emoji_count <- solidarity[solidarity$count!=0,]
+```
+## getting counts to match
+```{r}
+solidarity_emoji_count <- solidarity_emoji_count %>% select(description,count) %>% group_by(description) %>% dplyr::summarise(total = sum(count))
+```
+
+```{r}
+emDict <- read.csv2("emojis-basic-analysis/emoji_dict.csv",sep=",")
+```
+```{r}
+per_day <- irma_df %>% select(description,labels,day,count,sentiment_score) 
+per_day <- per_day[per_day$description!="None",]
+per_day <- per_day %>% select(description,labels,day,count,sentiment_score) %>% group_by(description,labels,day,sentiment_score)%>% dplyr::summarise(day_count = sum(count)) 
+#%>% mutate(normalized = (day_count - min(day_count)) * 100 /(max(day_count) - min(day_count)))
+per_day_sol <- per_day[per_day$labels == 1,]
+#per_day_sol <- per_day_sol %>% select(description,labels,day,day_count) %>% group_by(day) %>% mutate(normalized = (day_count - min(day_count)) * 100 /(max(day_count) - min(day_count)))
+per_day_sol <- per_day_sol[per_day_sol$day_count>50,]
+#per_day_sol <- per_day_sol[per_day_sol$normalized>30,]
+```
+
+```{r}
+emoji_sol <- merge(per_day_sol,emDict, by.x = "description")
+#emoji_sol <- as.data.frame(emoji_sol)
+#emoji_sol$unicode[emoji_sol$description=="red heart"] <- "U+2764 U+FE0F"
+#emoji_sol$unicode[is.na(emoji_sol$unicode)] <- "U+2764 U+FE0F"
+emoji_sol
+```
+```{r}
+conv_unicode_sol <- as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", emoji_sol$unicode))))
+conv_unicode_sol <- gsub("[[:space:]]", "", conv_unicode_sol) 
+conv_unicode_sol = as.data.frame(conv_unicode_sol)
+per_day_sol = cbind.data.frame(per_day_sol,conv_unicode_sol)
+```
+
+
+```{r fig.height=7 , fig.width=7}
+pal ='D'
+emoji_text=element_text(family="OpenSansEmoji", size=10)
+ggplot (per_day_sol, aes(x=day, y = forcats::fct_reorder(conv_unicode_sol,sentiment_score) ,fill=day_count))+ 
+  scale_fill_viridis(name="", 
+                     option = pal,  # Variable color palette
+                     direction = -1,  # Variable color direction
+                     na.value = "grey93",
+                     limits = c(0, max(per_day_sol$day_count))) +
+        geom_tile(color = "white", size = 0.1) +
+     theme(axis.text.y = emoji_text) + labs (x="",y="",title="") +
+    scale_x_discrete(expand = c(0,0))
+ps = grid.export("Visualization/Irma_paper/irma_diffusion_nofacet.svg", addClass=T)
+```
+
+```{r}
+per_day_sol_country <- irma_df %>% select(description,labels,day,community,count,sentiment_score)
+per_day_sol_country <- per_day_sol_country[per_day_sol_country$description!="None",]
+per_day_sol_country <- per_day_sol_country %>% select(description,labels,day,community,count,sentiment_score) %>% group_by(description,labels,day,community,sentiment_score) %>% dplyr::summarise(day_count = sum(count))
+per_day_sol_country <- per_day_sol_country[per_day_sol_country$labels == 1,]
+#per_day_sol_country$country <- trimws(per_day_sol_country$country,"b")
+```
+
+## getting percentage of emoji in affected vs not affected
+```{r}
+percentage <- per_day_sol_country %>% filter(community!="None")
+percentage <- percentage %>% select(community,day_count) %>% group_by(community) %>% dplyr::summarise(total=sum(day_count))
+
+```
+
+```{r}
+emoji_sol_country <- merge(per_day_sol_country, emDict, by.x = "description",by.y = "description")
+#emoji_sol_country <- emoji_sol_country[-c(711),]
+```
+
+```{r}
+emoji_sol_country[emoji_sol_country$description=="house",]
+emoji_sol_country <- emoji_sol_country[-c(867),]
+```
+
+```{r}
+#write_csv(emoji_sol_country,"emoji_sol_country_irma.csv")
+#write_csv(per_day_sol_country,"per_day_sol_country_irma.csv")
+```
+
+```{r}
+emoji_countries <- as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", emoji_sol_country$unicode))))
+emoji_countries <- gsub("[[:space:]]", "", emoji_countries) 
+emoji_countries = as.data.frame(emoji_countries)
+per_day_sol_country = cbind.data.frame(per_day_sol_country,emoji_countries)
+per_day_sol_country <- per_day_sol_country %>% filter(community !="None")
+#network::set.vertex.attribute(n, "label", conv_unicode_paris_sol)
+```
+
+```{r}
+islands <- c("Antigua and Barbuda","Barbados","Saint Martin","Saint Kitts and Nevis","Saint Barthelemy","British Virgin Islands","Anguilla","Puerto Rico","Haiti","Dominican Republic","Dominica","Cuba","Turks and Caicos Islands")
+islands_affected <- per_day_sol_country %>%
+  filter(country %in% islands) 
+
+```
+#normalization
+```{r}
+#per_day_sol_country <- per_day_sol_country %>% select(description,country,day,day_count) %>% group_by(description) %>% mutate(normalized = (day_count - min(day_count)) * 100 /(max(day_count) - min(day_count)))
+
+```
+
+```{r}
+us_emoji_diffusion <- per_day_sol_country%>% 
+  filter(community == "affected")
+non_us_emoji_diffusion <- per_day_sol_country %>% filter(community =="not affected")
+#non_us_emoji_diffusion <- non_us_emoji_diffusion %>% filter(country !="None")
+#non_us_emoji_diffusion <- subset(non_us_emoji_diffusion, select = -c(country) )
+#us_emoji_diffusion <- us_emoji_diffusion %>% select(description,day,day_count,emoji_countries,sentiment_score) %>% group_by(day) %>% mutate(normalized = (day_count /sum(day_count)) * 100)
+#non_us_emoji_diffusion <- non_us_emoji_diffusion %>% select(description,day,day_count,emoji_countries,sentiment_score) %>% group_by(day) %>% mutate(normalized = (day_count /sum(day_count)) * 100)
+us_emoji_per_day <- us_emoji_diffusion %>% select(description,day,day_count,emoji_countries) %>% group_by(day) %>% dplyr::summarise(counts = n() )
+non_us_emoji_per_day <- non_us_emoji_diffusion %>% select(description,day,day_count,emoji_countries) %>% group_by(day) %>% dplyr::summarise(counts = n() )
+us_emoji_diffusion <- us_emoji_diffusion[us_emoji_diffusion$day_count > 25,]
+#non_us_emoji_diffusion <- non_us_emoji_diffusion %>% select(description,day,day_count,emoji_countries,normalized) %>% group_by(description) %>% mutate(normalized = sum(normalized))
+non_us_emoji_diffusion <- non_us_emoji_diffusion[non_us_emoji_diffusion$day_count > 25,]
+```
+#Solidarity
+```{r fig.height=6 , fig.width=7}
+#library(gridExtra)
+library(svglite)
+pal ='D'
+emoji_text=element_text(family="OpenSansEmoji", size=10)
+ggplot (us_emoji_diffusion, aes(x=day, y = forcats::fct_reorder(emoji_countries,as.numeric(sentiment_score)) ,fill=day_count))+ #geom_jitter()+
+  scale_fill_viridis(name="", 
+                     option = pal,  # Variable color palette
+                     direction = -1,  # Variable color direction
+                     na.value = "grey93") +
+                     #limits = c(0, max(us_emoji_diffusion$day_count)) +
+        geom_tile(size = 0.2) +
+     theme(axis.text.y = emoji_text) + labs (x="",y="") + scale_x_discrete(labels=c("Sep 6","Sep 7","Sep 8","Sep 9","Sep 10","Sep 11","Sep 12")) + 
+    scale_x_discrete(expand = c(0,0))
+#+ facet_grid(~day, scales="free") 
+
+#ggsave(file="irma_diffusion_per_day_solidarity.svg", plot=us_plot, width=10, height=8)
+sol = grid.export("Visualization/Irma_paper/us_irma_diffusion_per_day_solidarity.svg", addClass=T)
+```
+
+```{r fig.height=7 , fig.width=7}
+pal ='D'
+emoji_text=element_text(family="OpenSansEmoji", size=10)
+ggplot (non_us_emoji_diffusion, aes(x=day, y = forcats::fct_reorder(emoji_countries,as.numeric(sentiment_score)) ,fill=day_count))+ #geom_jitter() +
+  scale_fill_viridis(name="", 
+                     option = pal,  # Variable color palette
+                     direction = -1,  # Variable color direction
+                     na.value = "grey93") +
+                     #limits = c(0, max(us_emoji_diffusion$day_count)) +
+        geom_tile(size = 0.1) +
+     theme(axis.text.y = emoji_text) + labs (x="",y="") + scale_x_discrete(labels=c("Sep 6","Sep 7","Sep 8","Sep 9","Sep 10","Sep 11","Sep 12")) + 
+    scale_x_discrete(expand = c(0,0))
+#+ facet_grid(~day, scales="free") 
+#ggsave(file="irma_diffusion_per_day_solidarity.svg", plot=us_plot, width=10, height=8)
+sol = grid.export("Visualization/Irma_paper/non_us_irma_diffusion_per_day_solidarity.svg", addClass=T)
+
+```
+
+
+#doing line charts on an hourly basis
+```{r}
+per_day_hour <- irma_df %>% select(description,labels,country,day,timestamp) 
+per_day_hour <- per_day_hour[per_day_hour$description!="None",]
+per_day_hour <- per_day_hour %>% select(description,labels,day,country,timestamp) %>% group_by(description,labels,country,day,timestamp)%>% dplyr::summarise(hour_count = n()) 
+#%>% mutate(normalized = (day_count - min(day_count)) * 100 /(max(day_count) - min(day_count)))
+per_day_hour_sol <- per_day_hour[per_day_hour$labels == 1,]
+per_day_hour_sol <- per_day_hour_sol[per_day_hour_sol$description!="None",]
+per_day_hour_sol <- per_day_hour_sol[per_day_hour_sol$country!="None",]
+#per_day_sol <- per_day_sol %>% select(description,labels,day,day_count) %>% group_by(day) %>% mutate(normalized = (day_count - min(day_count)) * 100 /(max(day_count) - min(day_count)))
+#per_day_sol <- per_day_sol[per_day_sol$day_count>50,]
+emoji_sol_country <- merge(per_day_hour_sol, emDict, by.x = "description",by.y = "description")
+emoji_sol_country <- emoji_sol_country[-c(3230),]
+emoji_countries_hour <- as.character(parse(text=shQuote(gsub("U\\+([A-Z0-9]+)", "\\\\U\\1", emoji_sol_country$unicode))))
+emoji_countries_hour <- gsub("[[:space:]]", "", emoji_countries_hour) 
+emoji_countries_hour = as.data.frame(emoji_countries_hour)
+per_day_hour_sol = cbind.data.frame(per_day_hour_sol,emoji_countries_hour)
+
+```
+
+```{r}
+us_emoji_diffusion_hour <- per_day_hour_sol%>% 
+  filter(country == "United States of America")
+ggplot(us_emoji_diffusion_hour) +
+  geom_line(aes(x = timestamp, y = hour_count))
+#+  facet_wrap(~description)
+
+```
+
+
+
+
+
+```{r}
+ggplot(per_day_sol,aes(x = day, y = description, color = country)) + 
+  geom_jitter(width = 0, height = 0.2) +
+  labs(title = "testing", 
+       x = "days",
+       y = "description",
+       color = "country")
+
+```
+
+
+```{r}
+plotting
+```
+```{r}
+ggsave("sample_emoji_count.png", plot=last_plot())
+
+```
+
+```{r}
+
+```

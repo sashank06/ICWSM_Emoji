@@ -27,9 +27,21 @@ Depends on the annotation made available in the annotations folder to further pr
 3. [Geo-tagging](https://github.com/sashank06/ICWSM_Emoji/blob/master/geotagging_irma.py) sample code is made availble for the IRMA dataset. This helps give the location mentioned in the tweets with a latitude, longitude and country.
 
 **Reproducing Co-occurence Network**
-1. Run the [irma_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/irma_tweets_emoji_analysis.Rmd) and [paris_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/paris_tweets_emoji_analysis.Rmd) with the prepared dataset.
+Run the [irma_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/irma_tweets_emoji_analysis.Rmd) and [paris_tweets_emoji_analysis.Rmd](https://github.com/sashank06/ICWSM_Emoji/blob/master/Cooccurrence-network/paris_tweets_emoji_analysis.Rmd) with the prepared dataset.
 
 Should produce these figures
-![Irma Network outside US](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_NotUS.png "Irma Network outside US")  |  ![Irma Network inside US ](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_US.png "Irma Network inside US")
+![Irma Network outside US](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_NotUS.png "Irma Network outside US")  ![Irma Network inside US ](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/emoji_solidarity_irma_network_US.png "Irma Network inside US")
 
-Please contact ssantha1@uncc.edu if you have any further questions.
+
+**Reproducing Diffusion Plots**
+Run the [irma_diffusion.Rmd](https://github.com/sashank06/ICWSM_Emoji/tree/master/Diffusion_graphs/irma_diffusion.Rmd) and [paris_diffusion.Rmd](https://github.com/sashank06/ICWSM_Emoji/tree/master/Diffusion_graphs/paris_diffusion.Rmd) with the prepared dataset.
+
+Should produce these figures - Diffusion Across Days
+![Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/irma_diffusion.png "Irma Diffusion Across Days")  
+![Paris Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/paris_diffusion.png "Paris Diffusion Across Days")
+
+Diffusion based on location
+![Within US Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/us_irma_diffusion.png "Irma Diffusion Across Days inside US")  
+![Outside US Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/outside_us_diffusion.png "Irma Diffusion Across Days outside US")
+
+Please contact ssantha1@uncc.edu if you have any further questions with regards to this project. 

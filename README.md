@@ -17,6 +17,10 @@ Please download the tweets with the help of the tweet IDs using this [repository
 parsing_json.Rmd -> Extracting tweets and necessrary fields from JSON.
 Depends on the annotation made available in the annotations folder to further pre-processs the dataset.
 ```
+**Classifier**
+1. Prepare the excel file with tweets and label.
+2. Run the classifier.
+
 
 **Steps needed to produce the figures in the paper**
 1. Prepare the excel file with required fields
@@ -43,5 +47,10 @@ Should produce these figures - Diffusion Across Days
 Diffusion based on location
 ![Within US Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/us_irma_diffusion.png "Irma Diffusion Across Days inside US")  
 ![Outside US Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/outside_us_diffusion.png "Irma Diffusion Across Days outside US")
+
+To Do:
+- [x] Add Classifier
+- [ ] Add requirements
+- [ ] Add classifier parameters
 
 Please contact ssantha1@uncc.edu if you have any further questions with regards to this project. 

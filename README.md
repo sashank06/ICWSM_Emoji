@@ -1,4 +1,4 @@
-# ICWSM_Emoji
+# ICWSM_Emoji :heart::purple_heart::broken_heart::dash::pray:
 
 This repository contains the dataset for the ICWSM emoji paper titled [I stand with you: Using Emojis to study solidarity in crisis events](http://ceur-ws.org/Vol-2130/paper1.pdf) published at ICWSM Emoji workshop, 2018, Stanford, USA.
 

@@ -49,7 +49,7 @@ Diffusion based on location
 ![Outside US Irma Diffusion](https://github.com/sashank06/ICWSM_Emoji/blob/master/images/outside_us_diffusion.png "Irma Diffusion Across Days outside US")
 
 To Do:
-- [x] Add Classifier
+- [x] ~~Add Classifier~~
 - [ ] Add requirements
 - [ ] Add classifier parameters
 
